@@ -1,7 +1,7 @@
 #include "generating_function.cpp"
+#include "fno.hpp"
 
 int main() {
-
     //create fresh stock prices file
     ofstream file("data/stock_prices.dat");
     file.clear();
@@ -34,5 +34,44 @@ int main() {
         getUserInfo(last_trade_prices);
         cout<<"terminate Y/N ";
         cin>>s;
+    }
+
+    // create futures market
+    FutureMarket futureMarket;
+
+    ifstream file("Fdata.csv");  // Open the CSV file
+    string line;
+    
+    // This will store the data
+    vector<vector<string>> data;
+
+    // Check if file is open
+    if (!file.is_open()) {
+        std::cerr << "Failed to open the file!" << std::endl;
+        return 1;
+    }
+
+    // Reading each line from the CSV file
+    while (getline(file, line)) {
+        vector<string> row;  // Store a single row of data
+        stringstream lineStream(line);  // Turn the line into a stream
+        string cell;
+
+        // Split the line by comma
+        while (getline(lineStream, cell, ',')) {
+            row.push_back(cell);  // Add each cell to the row
+        }
+
+        data.push_back(row);  // Add the row to the data
+    }
+
+    file.close();  // Close the file after reading
+
+    // Output the data (for demonstration)
+    for (const auto& row : data) {
+        for (const auto& cell : row) {
+            std::cout << cell << " ";
+        }
+        std::cout << std::endl;
     }
 }
