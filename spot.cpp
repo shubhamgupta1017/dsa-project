@@ -1,3 +1,5 @@
+#ifndef SPOT_CPP
+#define SPOT_CPP
 #include <iostream>
 #include <queue>
 #include <vector>
@@ -7,59 +9,27 @@
 #include "manage_user.cpp"
 using namespace std;
 
-//create a function to write the spot prices of each stock at each timestamp in a file
-unordered_map<long long,vector<double> > getspotprice;
+// Create a function to write the spot prices of each stock at each timestamp in a file
+unordered_map<long long, vector<double>> getspotprice;
 
-// write all the spot prices to a file
-void writeSpotPricesToFile(){
-    // Open a file in append mode
-    std::ofstream file("spot_prices.dat", std::ios::app);
-    
-    // Write the day number to the file
-    file << "Spot Prices" << "\n";
-    
-    // Write all spot prices to the file
-    for(auto it : getspotprice){
-        file<<it.first<<" ";
-        for(auto it1 : it.second){
-            file<<it1<<" ";
-        }
-        file<<"\n";
-    }
-    
-    // Close the file
-    file.close();
-}
-
-// Function to log the price of a stock to a file
-void logPriceToFile(const std::string &company, long long timestamp, double price, int buyer_id, int seller_id) {
-    // Open a file in append mode
-    std::ofstream file("data/stock_prices.dat", std::ios::app);
-    
-    // Write the timestamp, company name, and price to the file
-    file << timestamp << " " << company << " " << price << " " << buyer_id << " " << seller_id << "\n";
-    
-    // Close the file
-    file.close();
-}
-
-//hash map for last trade price for each stock
+// Hash map for the last trade price of each stock
 unordered_map<string, double> last_trade_prices;
 
+// Global variable for last recorded timestamp for getspotprice
+long long last_price_update_time = 0;
 
+// Struct to represent an Order
 struct Order {
-    std::string company_name;
+    string company_name;
     int user_id;
-    bool is_buy; // true for buy, false for sell
+    bool is_buy;
     double price;
     long long timestamp;
     double quantity;
 
-    Order(std::string comp, int id, bool buy, double p, long long ts, double q = 1.0)
+    Order(string comp, int id, bool buy, double p, long long ts, double q = 1.0)
         : company_name(comp), user_id(id), is_buy(buy), price(p), timestamp(ts), quantity(q) {}
 };
-
-
 
 // Comparator for max-heap (buy orders)
 struct BuyComparator {
@@ -76,61 +46,54 @@ struct SellComparator {
 };
 
 // Priority queues for buy and sell orders
-std::priority_queue<Order, std::vector<Order>, BuyComparator> buyOrders;
-std::priority_queue<Order, std::vector<Order>, SellComparator> sellOrders;
+priority_queue<Order, vector<Order>, BuyComparator> buyOrders;
+priority_queue<Order, vector<Order>, SellComparator> sellOrders;
 
-// Trading duration in seconds (9:15 AM to 3:30 PM = 6 hours 15 minutes = 22,500 seconds = 22,500,000 milliseconds)
-const long long TRADING_DAY_DURATION = 22500000;
-
-// Function to handle a trade between buyer and seller
-void executeTrade(int buyer_id, int seller_id, double price, double quantity,string company) {
-    // Transaction processing logic
-    doTransaction(buyer_id,seller_id,price,quantity,company);
+// Function to execute a trade between buyer and seller
+void executeTrade(int buyer_id, int seller_id, double price, double quantity, const string &company) {
+    doTransaction(buyer_id, seller_id, price, quantity, company);
 }
 
-// Function to write all cacelled orders to a file
-void writeCancelledOrdersToFile(int day) {
-    // Open a file in append mode
-    std::ofstream file("data/cancelled_orders.dat", std::ios::app);
-    
-    // Write the day number to the file
-    file << "Day " << day << "\n";
-    
-    // Write all cancelled orders to the file
-    while (!buyOrders.empty()) {
-        Order order = buyOrders.top();
-        buyOrders.pop();
-        file << order.timestamp << " " << order.company_name << " " << order.price << " " << order.user_id << " " << order.quantity << " " << "Buy" << "\n";
-    }
-    
-    while (!sellOrders.empty()) {
-        Order order = sellOrders.top();
-        sellOrders.pop();
-        file << order.timestamp << " " << order.company_name << " " << order.price << " " << order.user_id << " " << order.quantity << " " << "Sell" << "\n";
-    }
-    
-    // Close the file
+// Function to log the price of a stock to a file
+void logPriceToFile(const string &company, long long timestamp, double price, int buyer_id, int seller_id) {
+    ofstream file("stock_prices.dat", ios::app);
+    file << timestamp << " " << company << " " << price << " " << buyer_id << " " << seller_id << "\n";
     file.close();
 }
 
+// Function to write all canceled orders to a file
+void writeCancelledOrdersToFile(int day) {
+    ofstream file("cancelled_orders.dat", ios::app);
+    file << "Day " << day << "\n";
 
-//global variable for last trade time
-long long last_trade_price = 0;
+    while (!buyOrders.empty()) {
+        Order order = buyOrders.top();
+        buyOrders.pop();
+        file << order.timestamp << " " << order.company_name << " " << order.price << " " 
+             << order.user_id << " " << order.quantity << " Buy\n";
+    }
 
-void spotTrade(const std::string &company, int user_id, bool is_buy, double price, long long timestamp, double quantity) {
-    // Create a new order
+    while (!sellOrders.empty()) {
+        Order order = sellOrders.top();
+        sellOrders.pop();
+        file << order.timestamp << " " << order.company_name << " " << order.price << " " 
+             << order.user_id << " " << order.quantity << " Sell\n";
+    }
+    
+    file.close();
+}
+
+// Function to process a spot trade
+void spotTrade(const string &company, int user_id, bool is_buy, double price, long long timestamp, double quantity) {
     Order order(company, user_id, is_buy, price, timestamp, quantity);
 
-    // Match buy and sell orders
-    bool tradeExecuted = false;
     if (is_buy) {
-        // Check if there’s a sell order that can match
         while (!sellOrders.empty() && sellOrders.top().price <= price) {
             Order sellOrder = sellOrders.top();
             sellOrders.pop();
             if (sellOrder.company_name != company) continue;
 
-            double tradeQuantity = std::min(order.quantity, sellOrder.quantity);
+            double tradeQuantity = min(order.quantity, sellOrder.quantity);
             executeTrade(user_id, sellOrder.user_id, sellOrder.price, tradeQuantity, company);
             last_trade_prices[company] = sellOrder.price;
             logPriceToFile(company, timestamp, sellOrder.price, user_id, sellOrder.user_id);
@@ -139,21 +102,16 @@ void spotTrade(const std::string &company, int user_id, bool is_buy, double pric
             sellOrder.quantity -= tradeQuantity;
 
             if (sellOrder.quantity > 0) sellOrders.push(sellOrder);
-            if (order.quantity == 0) {
-                tradeExecuted = true;
-                break;
-            }
+            if (order.quantity == 0) return;
         }
         if (order.quantity > 0) buyOrders.push(order);
-
     } else {
-        // Check if there’s a buy order that can match
         while (!buyOrders.empty() && buyOrders.top().price >= price) {
             Order buyOrder = buyOrders.top();
             buyOrders.pop();
             if (buyOrder.company_name != company) continue;
 
-            double tradeQuantity = std::min(order.quantity, buyOrder.quantity);
+            double tradeQuantity = min(order.quantity, buyOrder.quantity);
             executeTrade(buyOrder.user_id, user_id, buyOrder.price, tradeQuantity, company);
             last_trade_prices[company] = buyOrder.price;
             logPriceToFile(company, timestamp, buyOrder.price, buyOrder.user_id, user_id);
@@ -162,28 +120,47 @@ void spotTrade(const std::string &company, int user_id, bool is_buy, double pric
             buyOrder.quantity -= tradeQuantity;
 
             if (buyOrder.quantity > 0) buyOrders.push(buyOrder);
-            if (order.quantity == 0) {
-                tradeExecuted = true;
-                break;
-            }
+            if (order.quantity == 0) return;
         }
         if (order.quantity > 0) sellOrders.push(order);
     }
 
-    // Add all spot prices to getspotprice for the current timestamp
-    if (tradeExecuted) {
-        getspotprice[timestamp].clear();
-        for (auto it : last_trade_prices) {
-            getspotprice[timestamp].push_back(it.second);
+    // Record spot prices at each 500 ms interval
+    if (timestamp - last_price_update_time >= 500) {
+        vector<double> prices;
+        for (const auto &entry : last_trade_prices) {
+            prices.push_back(entry.second);
         }
-    } else {
-        // If no trade was executed, you could still add the last known prices for each company
-        if (!getspotprice.count(timestamp)) {
-            for (auto it : last_trade_prices) {
-                getspotprice[timestamp].push_back(it.second);
-            }
-        }
+        getspotprice[timestamp] = prices;
+        last_price_update_time = timestamp;
     }
 }
 
+// Function to generate random orders
+void generateOrders(int numOrders, int day) {
+    srand(time(0));
+    vector<string> companies = {"AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"};
+    int numCompanies = companies.size();
 
+    for (int i = 0; i < numCompanies; ++i) {
+        last_trade_prices[companies[i]] = 150.0;
+    }
+
+    int maxUserId = 1000;
+    double minPrice = 50.0, maxPrice = 250.0;
+    int minQuantity = 1, maxQuantity = 50;
+    long long timestamp = day * 100000000;
+
+    for (int i = 0; i < numOrders; ++i) {
+        string company = companies[rand() % numCompanies];
+        int user_id = rand() % maxUserId + 1;
+        bool is_buy = rand() % 2;
+        double price = minPrice + (rand() / (double)RAND_MAX) * (maxPrice - minPrice);
+        int quantity = rand() % (maxQuantity - minQuantity + 1) + minQuantity;
+
+        spotTrade(company, user_id, is_buy, price, timestamp, quantity);
+        timestamp += 500;
+    }
+}
+
+#endif
